@@ -773,9 +773,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   content: {fileID: 2057263178}
-  movementType: 1
   movementDirection: 0
   lockOtherDirection: 1
+  movementType: 1
+  inertia: 1
+  decelerationRate: 0.135
   snapType: 0
   interpolatorType: 8
   maxSnapDuration: 0.25
@@ -926,7 +928,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 50, y: 100}
+  m_SizeDelta: {x: 245.17, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &2139878576
 GameObject:

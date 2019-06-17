@@ -44,13 +44,20 @@ namespace Ricimon.ScrollSnap
 
         [Serializable] public class Vector2Event : UnityEvent<Vector2> { }
 
+        // Inspector parameters ----------------------------------------------------
         public RectTransform content;
-
-        public MovementType movementType = MovementType.Elastic;
 
         public MovementDirection movementDirection = MovementDirection.Horizontal;
 
+        [Tooltip("Prevent scroll movement in the other movement direction.")]
         public bool lockOtherDirection = true;
+
+        public MovementType movementType = MovementType.Elastic;
+
+        public bool inertia = true;
+
+        [Tooltip("Speed reduction per second. A value of 0.5 halves the speed each second. This is only used when inertia is enabled.")]
+        public float decelerationRate = 0.135f;
 
         public SnapType snapType = SnapType.SnapToNearest;
 
@@ -70,6 +77,12 @@ namespace Ricimon.ScrollSnap
 
         public Vector2Event OnValueChanged = new Vector2Event();
 
+        // Public accessors ---------------------------------------------------------
+        public Vector2 contentPosition => content.anchoredPosition;
+
+        public Vector2 velocity { get; private set; }
+
+        // Private ------------------------------------------------------------------
         private RectTransform _rectTransform;
         private RectTransform rectTransform
         {
@@ -95,6 +108,8 @@ namespace Ricimon.ScrollSnap
             }
         }
 
+        private Scroller _scroller;
+
         private Vector2 _localCursorStartPosition;
         private Vector2 _contentStartPosition;
 
@@ -103,7 +118,7 @@ namespace Ricimon.ScrollSnap
             get
             {
                 Vector2 contentSize = content.rect.size;
-                Vector2 contentCenter = content.rect.center + content.anchoredPosition;
+                Vector2 contentCenter = content.rect.center + contentPosition;
                 if (content.parent != viewRect)
                 {
                     contentSize = viewRect.InverseTransformVector(content.TransformVector(contentSize));
@@ -120,11 +135,20 @@ namespace Ricimon.ScrollSnap
         private Bounds viewBounds => new Bounds(viewRect.rect.center, viewRect.rect.size);
 
         private Vector2 _prevContentPosition;
-
-        private Vector2 _velocity;
         #endregion
 
         #region Scrolling
+        protected override void Awake()
+        {
+            base.Awake();
+            _scroller = new Scroller(this);
+
+            _scroller.ScrollPositionUpdate += (pos) =>
+            {
+                content.anchoredPosition = ClampTargetPositionToViewBounds(pos);
+            };
+        }
+
         private void Update()
         {
             if (!IsActive())
@@ -135,15 +159,20 @@ namespace Ricimon.ScrollSnap
             float deltaTime = affectedByTimeScaling ? Time.deltaTime : Time.unscaledDeltaTime;
             
             // Update Velocity
-            Vector2 newVelocity = (content.anchoredPosition - _prevContentPosition) / deltaTime;
-            _velocity = Vector2.Lerp(_velocity, newVelocity, deltaTime * 10);
+            Vector2 newVelocity = (contentPosition - _prevContentPosition) / deltaTime;
+            // User dragging should smooth velocity, whereas script-controlled movement should be precise velocity.
+            velocity = _scroller.IsScrolling ?
+                newVelocity :
+                Vector2.Lerp(velocity, newVelocity, deltaTime * 10);
 
             UpdatePrevData();
+
+            _scroller.Tick();
         }
 
         private void UpdatePrevData()
         {
-            _prevContentPosition = content.anchoredPosition;
+            _prevContentPosition = contentPosition;
         }
 
         public void OnScroll(PointerEventData eventData)
@@ -162,8 +191,10 @@ namespace Ricimon.ScrollSnap
                 return;
             }
 
+            _scroller.StopScroll();
+
             RectTransformUtility.ScreenPointToLocalPointInRectangle(viewRect, ped.position, ped.pressEventCamera, out _localCursorStartPosition);
-            _contentStartPosition = content.anchoredPosition;
+            _contentStartPosition = contentPosition;
         }
 
         public void OnDrag(PointerEventData ped)
@@ -178,22 +209,8 @@ namespace Ricimon.ScrollSnap
                 Vector2 pointerDelta = localCursor - _localCursorStartPosition;
                 pointerDelta = FitDeltaToScrollDirection(pointerDelta);
                 Vector2 position = _contentStartPosition + pointerDelta;
-                Vector2 offset = CalculateContentOffsetToStayWithinViewBoundsAfterMoveDelta(position - content.anchoredPosition);
-                position += offset;
 
-                if (movementType == MovementType.Elastic)
-                {
-                    if (offset.x != 0)
-                    {
-                        position.x -= RubberDelta(offset.x, viewBounds.size.x);
-                    }
-                    if (offset.y != 0)
-                    {
-                        position.y -= RubberDelta(offset.y, viewBounds.size.y);
-                    }
-                }
-
-                content.anchoredPosition = position;
+                content.anchoredPosition = ClampTargetPositionToViewBounds(position);
             }
         }
 
@@ -203,6 +220,8 @@ namespace Ricimon.ScrollSnap
             {
                 return;
             }
+
+            _scroller.StartScroll();
         }
 
         private Vector2 FitDeltaToScrollDirection(Vector2 delta)
@@ -223,6 +242,26 @@ namespace Ricimon.ScrollSnap
                 }
                 return delta;
             }
+        }
+
+        private Vector2 ClampTargetPositionToViewBounds(Vector2 targetPosition)
+        {
+            Vector2 offset = CalculateContentOffsetToStayWithinViewBoundsAfterMoveDelta(targetPosition - content.anchoredPosition);
+            targetPosition += offset;
+
+            if (movementType == MovementType.Elastic)
+            {
+                if (offset.x != 0)
+                {
+                    targetPosition.x -= RubberDelta(offset.x, viewBounds.size.x);
+                }
+                if (offset.y != 0)
+                {
+                    targetPosition.y -= RubberDelta(offset.y, viewBounds.size.y);
+                }
+            }
+
+            return targetPosition;
         }
 
         private Vector2 CalculateContentOffsetToStayWithinViewBoundsAfterMoveDelta(Vector2 delta)
