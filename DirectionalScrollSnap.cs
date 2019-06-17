@@ -56,6 +56,10 @@ namespace Ricimon.ScrollSnap
 
         public InterpolatorType interpolatorType = InterpolatorType.ViscousFluid;
 
+        /// <summary>
+        /// The maximum interpolation duration, which occurs when moving to the next snap position when directly on a snap position.
+        /// </summary>
+        [Tooltip("The maximum interpolation duration, which occurs when moving to the next snap position when directly on a snap position.")]
         public float maxSnapDuration = 0.25f;
 
         public RectTransform viewport;

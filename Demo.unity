@@ -772,7 +772,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33319c962eb7fc844bc746536f770247, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _content: {fileID: 2057263178}
+  content: {fileID: 2057263178}
   movementType: 1
   movementDirection: 0
   lockOtherDirection: 1
@@ -780,6 +780,7 @@ MonoBehaviour:
   interpolatorType: 8
   maxSnapDuration: 0.25
   viewport: {fileID: 0}
+  affectedByTimeScaling: 0
   _drawGizmos: 1
   OnValueChanged:
     m_PersistentCalls:
