@@ -21,6 +21,7 @@ namespace Ricimon.ScrollSnap
             NotScrolling,
             WillStartScrolling,
             ScrollingWithInertia,
+            ScrollingBackInBounds,
             Snapping,
         }
 
@@ -39,6 +40,14 @@ namespace Ricimon.ScrollSnap
         public void StartScroll()
         {
             _scrollState = ScrollState.WillStartScrolling;
+        }
+
+        public void ScrollBackInBounds()
+        {
+            if (_scrollState != ScrollState.NotScrolling)
+            {
+                _scrollState = ScrollState.ScrollingBackInBounds;
+            }
         }
 
         public void Tick()
@@ -70,6 +79,11 @@ namespace Ricimon.ScrollSnap
 
                         ScrollPositionUpdate?.Invoke(endPosition);
                     }
+                    break;
+                case ScrollState.ScrollingBackInBounds:
+                    ScrollPositionUpdate?.Invoke(_scrollSnap.contentPosition);
+                    if (_scrollSnap.velocity == Vector2.zero)
+                        _scrollState = ScrollState.NotScrolling;
                     break;
             }
         }

@@ -254,10 +254,12 @@ namespace Ricimon.ScrollSnap
                 if (offset.x != 0)
                 {
                     targetPosition.x -= RubberDelta(offset.x, viewBounds.size.x);
+                    _scroller.ScrollBackInBounds();
                 }
                 if (offset.y != 0)
                 {
                     targetPosition.y -= RubberDelta(offset.y, viewBounds.size.y);
+                    _scroller.ScrollBackInBounds();
                 }
             }
 
