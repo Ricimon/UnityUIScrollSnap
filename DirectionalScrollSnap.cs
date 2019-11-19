@@ -1,13 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Ricimon.ScrollSnap
 {
-    public class DirectionalScrollSnap : UIBehaviour, IBeginDragHandler, IEndDragHandler, IDragHandler, IScrollHandler
+    [SelectionBase]
+    [ExecuteAlways]
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(RectTransform))]
+    public class DirectionalScrollSnap : UIBehaviour, IInitializePotentialDragHandler, IBeginDragHandler, IEndDragHandler, IDragHandler, IScrollHandler, ICanvasElement, ILayoutGroup
     {
         #region Variables
         public enum MovementDirection
@@ -117,6 +125,9 @@ namespace Ricimon.ScrollSnap
         {
             get
             {
+                if (!content)
+                    return new Bounds();
+
                 Vector2 contentSize = content.rect.size;
                 Vector2 contentCenter = content.rect.center + contentPosition;
                 if (content.parent != viewRect)
@@ -135,6 +146,81 @@ namespace Ricimon.ScrollSnap
         private Bounds viewBounds => new Bounds(viewRect.rect.center, viewRect.rect.size);
 
         private Vector2 _prevContentPosition;
+
+        // Content Rects
+        private List<RectTransform> _contentRects = new List<RectTransform>();
+
+        private DrivenRectTransformTracker m_Tracker;
+        #endregion
+
+        #region Layout
+        public virtual void Rebuild(CanvasUpdate executing)
+        {
+            if (executing == CanvasUpdate.PostLayout)
+            {
+                UpdatePrevData();
+            }
+        }
+
+        public virtual void LayoutComplete() 
+        {}
+
+        public virtual void GraphicUpdateComplete()
+        {}
+
+        public virtual void SetLayoutHorizontal()
+        {
+            m_Tracker.Clear();
+            CollectAndResizeContent();
+        }
+
+        public virtual void SetLayoutVertical()
+        {
+
+        }
+
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+
+            CanvasUpdateRegistry.RegisterCanvasElementForLayoutRebuild(this);
+            SetDirty();
+        }
+
+        protected override void OnDisable()
+        {
+            CanvasUpdateRegistry.UnRegisterCanvasElementForRebuild(this);
+
+            _scroller?.StopScroll();
+            m_Tracker.Clear();
+            velocity = Vector2.zero;
+            LayoutRebuilder.MarkLayoutForRebuild(rectTransform);
+            base.OnDisable();
+        }
+
+        protected void SetDirty()
+        {
+            if (!IsActive())
+                return;
+
+            LayoutRebuilder.MarkLayoutForRebuild(rectTransform);
+        }
+
+        protected void SetDirtyCaching()
+        {
+            if (!IsActive())
+                return;
+
+            CanvasUpdateRegistry.RegisterCanvasElementForLayoutRebuild(this);
+            LayoutRebuilder.MarkLayoutForRebuild(rectTransform);
+        }
+
+#if UNITY_EDITOR
+        protected override void OnValidate()
+        {
+            SetDirtyCaching();
+        }
+#endif
         #endregion
 
         #region Scrolling
@@ -149,12 +235,13 @@ namespace Ricimon.ScrollSnap
             };
         }
 
-        private void Update()
+        protected virtual void LateUpdate()
         {
             if (!IsActive())
-            {
                 return;
-            }
+
+            if (!_scroller)
+                return;
 
             float deltaTime = affectedByTimeScaling ? Time.deltaTime : Time.unscaledDeltaTime;
             
@@ -170,7 +257,7 @@ namespace Ricimon.ScrollSnap
             _scroller.Tick();
         }
 
-        private void UpdatePrevData()
+        protected void UpdatePrevData()
         {
             _prevContentPosition = contentPosition;
         }
@@ -184,12 +271,21 @@ namespace Ricimon.ScrollSnap
             Debug.Log("OnScroll");
         }
 
-        public void OnBeginDrag(PointerEventData ped)
+        public virtual void OnInitializePotentialDrag(PointerEventData ped)
         {
-            if (!IsActive())
-            {
+            if (ped.button != PointerEventData.InputButton.Left)
                 return;
-            }
+
+            _scroller.StopScroll();
+        }
+        
+        public virtual void OnBeginDrag(PointerEventData ped)
+        {
+            if (ped.button != PointerEventData.InputButton.Left)
+                return;
+
+            if (!IsActive())
+                return;
 
             _scroller.StopScroll();
 
@@ -197,12 +293,13 @@ namespace Ricimon.ScrollSnap
             _contentStartPosition = contentPosition;
         }
 
-        public void OnDrag(PointerEventData ped)
+        public virtual void OnDrag(PointerEventData ped)
         {
-            if (!IsActive())
-            {
+            if (ped.button != PointerEventData.InputButton.Left)
                 return;
-            }
+
+            if (!IsActive())
+                return;
 
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(viewRect, ped.position, ped.pressEventCamera, out Vector2 localCursor))
             {
@@ -214,12 +311,10 @@ namespace Ricimon.ScrollSnap
             }
         }
 
-        public void OnEndDrag(PointerEventData ped)
+        public virtual void OnEndDrag(PointerEventData ped)
         {
             if (!IsActive())
-            {
                 return;
-            }
 
             _scroller.StartScroll();
         }
@@ -299,6 +394,83 @@ namespace Ricimon.ScrollSnap
             }
 
             return offset;
+        }
+        #endregion
+
+        #region Content Management
+        private void CollectAndResizeContent()
+        {
+            _contentRects.Clear();
+
+            if (!content)
+                return;
+
+            // Use Horizontal/Vertical LayoutGroup to visually sort all the content rects
+            var layoutGroup = content.GetComponent<LayoutGroup>();
+            if (movementDirection == MovementDirection.Horizontal)
+            {
+                if (!layoutGroup)
+                {
+                    AddLayoutGroupToContent<HorizontalLayoutGroup>();
+                }
+                else if (!(layoutGroup is HorizontalLayoutGroup))
+                {
+                    Destroy(layoutGroup);
+                    AddLayoutGroupToContent<HorizontalLayoutGroup>();
+                }
+            }
+            else if (movementDirection == MovementDirection.Vertical)
+            {
+                if (!layoutGroup)
+                {
+                    AddLayoutGroupToContent<VerticalLayoutGroup>();
+                }
+                else if (!(layoutGroup is VerticalLayoutGroup))
+                {
+                    Destroy(layoutGroup);
+                    AddLayoutGroupToContent<VerticalLayoutGroup>();
+                }
+            }
+
+            // Gather
+            float totalContentLength = 0f;  // could be width or height depending on scroll movement direction
+            foreach (var rt in content.OfType<RectTransform>())
+            {
+                _contentRects.Add(rt);
+                // ya I know this isn't optimized
+                totalContentLength += movementDirection == MovementDirection.Horizontal ?
+                    rt.sizeDelta.x :
+                    rt.sizeDelta.y;
+            }
+
+            // Resize the Content rect to fit the content (TODO: Add boolean to toggle this off?)
+            DrivenTransformProperties dtp;
+            Vector2 tempContentSizeDelta = content.sizeDelta;
+            if (movementDirection == MovementDirection.Horizontal)
+            {
+                dtp = DrivenTransformProperties.SizeDeltaX;
+                tempContentSizeDelta.x = totalContentLength;
+            }
+            else
+            {
+                dtp = DrivenTransformProperties.SizeDeltaY;
+                tempContentSizeDelta.y = totalContentLength;
+            }
+            m_Tracker.Add(this, content, dtp);
+#if UNITY_EDITOR
+            Undo.RecordObject(content, "Fit Content Size");
+#endif
+            content.sizeDelta = tempContentSizeDelta;
+        }
+
+        private void AddLayoutGroupToContent<T>() where T : HorizontalOrVerticalLayoutGroup
+        {
+#if UNITY_EDITOR
+            var layoutGroup = Undo.AddComponent<T>(content.gameObject);
+#else
+            var layoutGroup = content.gameObject.AddComponent<T>();
+#endif
+            layoutGroup.childForceExpandWidth = layoutGroup.childForceExpandHeight = false;
         }
         #endregion
 

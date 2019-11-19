@@ -87,5 +87,10 @@ namespace Ricimon.ScrollSnap
                     break;
             }
         }
+
+        public static implicit operator bool(Scroller exists)
+        {
+            return exists != null;
+        }
     }
 }
