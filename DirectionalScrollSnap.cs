@@ -86,7 +86,7 @@ namespace Ricimon.ScrollSnap
         public Vector2Event OnValueChanged = new Vector2Event();
 
         // Public accessors ---------------------------------------------------------
-        public Vector2 contentPosition => content.anchoredPosition;
+        public Vector2 contentPosition => content ? content.anchoredPosition : Vector2.zero;
 
         public Vector2 velocity { get; private set; }
 
@@ -171,12 +171,18 @@ namespace Ricimon.ScrollSnap
         public virtual void SetLayoutHorizontal()
         {
             m_Tracker.Clear();
-            CollectAndResizeContent();
+            if (movementDirection == MovementDirection.Horizontal)
+            {
+                CollectAndResizeContent(0);
+            }
         }
 
         public virtual void SetLayoutVertical()
         {
-
+            if (movementDirection == MovementDirection.Vertical)
+            {
+                CollectAndResizeContent(1);
+            }
         }
 
         protected override void OnEnable()
@@ -265,10 +271,7 @@ namespace Ricimon.ScrollSnap
         public void OnScroll(PointerEventData eventData)
         {
             if (!IsActive())
-            {
                 return;
-            }
-            Debug.Log("OnScroll");
         }
 
         public virtual void OnInitializePotentialDrag(PointerEventData ped)
@@ -398,7 +401,7 @@ namespace Ricimon.ScrollSnap
         #endregion
 
         #region Content Management
-        private void CollectAndResizeContent()
+        private void CollectAndResizeContent(int axis)
         {
             _contentRects.Clear();
 
@@ -407,7 +410,7 @@ namespace Ricimon.ScrollSnap
 
             // Use Horizontal/Vertical LayoutGroup to visually sort all the content rects
             var layoutGroup = content.GetComponent<LayoutGroup>();
-            if (movementDirection == MovementDirection.Horizontal)
+            if (axis == 0)
             {
                 if (!layoutGroup)
                 {
@@ -419,7 +422,7 @@ namespace Ricimon.ScrollSnap
                     AddLayoutGroupToContent<HorizontalLayoutGroup>();
                 }
             }
-            else if (movementDirection == MovementDirection.Vertical)
+            else if (axis == 1)
             {
                 if (!layoutGroup)
                 {
@@ -434,29 +437,18 @@ namespace Ricimon.ScrollSnap
 
             // Gather
             float totalContentLength = 0f;  // could be width or height depending on scroll movement direction
-            foreach (var rt in content.OfType<RectTransform>())
+            foreach (RectTransform rt in content)
             {
                 _contentRects.Add(rt);
-                // ya I know this isn't optimized
-                totalContentLength += movementDirection == MovementDirection.Horizontal ?
-                    rt.sizeDelta.x :
-                    rt.sizeDelta.y;
+                totalContentLength += rt.sizeDelta[axis];
             }
 
             // Resize the Content rect to fit the content (TODO: Add boolean to toggle this off?)
-            DrivenTransformProperties dtp;
             Vector2 tempContentSizeDelta = content.sizeDelta;
-            if (movementDirection == MovementDirection.Horizontal)
-            {
-                dtp = DrivenTransformProperties.SizeDeltaX;
-                tempContentSizeDelta.x = totalContentLength;
-            }
-            else
-            {
-                dtp = DrivenTransformProperties.SizeDeltaY;
-                tempContentSizeDelta.y = totalContentLength;
-            }
-            m_Tracker.Add(this, content, dtp);
+            tempContentSizeDelta[axis] = totalContentLength;
+            m_Tracker.Add(this, content, axis == 0 ?
+                DrivenTransformProperties.SizeDeltaX :
+                DrivenTransformProperties.SizeDeltaY);
 #if UNITY_EDITOR
             Undo.RecordObject(content, "Fit Content Size");
 #endif
@@ -472,6 +464,40 @@ namespace Ricimon.ScrollSnap
 #endif
             layoutGroup.childForceExpandWidth = layoutGroup.childForceExpandHeight = false;
         }
+
+        protected virtual void OnDrawGizmosSelected()
+        {
+            if (_drawGizmos)
+            {
+                Color initialColor = Gizmos.color;
+
+                Vector3[] corners = new Vector3[4];
+                content.GetWorldCorners(corners);
+
+                Vector3 bottomLeftWorld = corners[0];
+                Vector3 topLeftWorld = corners[1];
+                Vector3 topRightWorld = corners[2];
+                Vector3 bottomRightWorld = corners[3];
+
+                Vector3 up = topRightWorld - bottomRightWorld;
+                Vector3 left = topLeftWorld - topRightWorld;
+
+                foreach(RectTransform rt in content)
+                {
+                    Gizmos.color = Color.cyan;
+                    if (movementDirection == MovementDirection.Horizontal)
+                    {
+                        Gizmos.DrawRay(rt.position - up / 2f, up);
+                    }
+                    else
+                    {
+                        Gizmos.DrawRay(rt.position - left / 2f, left);
+                    }
+                }
+
+                Gizmos.color = initialColor;
+            }
+        }
         #endregion
 
         #region Public Functions
@@ -482,7 +508,7 @@ namespace Ricimon.ScrollSnap
         #endregion
 
         #region Calculators
-        private float RubberDelta(float overStretching, float viewSize)
+        internal static float RubberDelta(float overStretching, float viewSize)
             => (1 - (1 / ((Mathf.Abs(overStretching) * 0.55f / viewSize) + 1))) * viewSize * Mathf.Sign(overStretching);
         #endregion
     }
