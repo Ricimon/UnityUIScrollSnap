@@ -86,7 +86,22 @@ namespace Ricimon.ScrollSnap
         public Vector2Event OnValueChanged = new Vector2Event();
 
         // Public accessors ---------------------------------------------------------
-        public Vector2 contentPosition => content ? content.anchoredPosition : Vector2.zero;
+        /// <summary>
+        /// Content position relative to the viewport
+        /// </summary>
+        public Vector2 contentPosition
+        {
+            get
+            {
+                if (!content)
+                    return Vector2.zero;
+
+                Vector2 pos = content.anchoredPosition;
+                if (content.parent != viewRect)
+                    pos = viewRect.InverseTransformVector(content.TransformVector(pos));
+                return pos;
+            }
+        }
 
         public Vector2 velocity { get; private set; }
 
@@ -129,7 +144,7 @@ namespace Ricimon.ScrollSnap
                     return new Bounds();
 
                 Vector2 contentSize = content.rect.size;
-                Vector2 contentCenter = content.rect.center + contentPosition;
+                Vector2 contentCenter = content.rect.center;
                 if (content.parent != viewRect)
                 {
                     contentSize = viewRect.InverseTransformVector(content.TransformVector(contentSize));
@@ -237,8 +252,18 @@ namespace Ricimon.ScrollSnap
 
             _scroller.ScrollPositionUpdate += (pos) =>
             {
-                content.anchoredPosition = ClampTargetPositionToViewBounds(pos);
+                Vector2 targetPosition = ClampTargetPositionToViewBounds(pos);
+                if (content.parent != viewRect)
+                {
+                    targetPosition = content.InverseTransformVector(viewRect.TransformVector(targetPosition));
+                }
+                content.anchoredPosition = targetPosition;
             };
+        }
+
+        protected override void Start()
+        {
+            //CollectContent();
         }
 
         protected virtual void LateUpdate()
@@ -368,6 +393,7 @@ namespace Ricimon.ScrollSnap
         {
             var offset = Vector2.zero;
 
+            Bounds contentBounds = this.contentBounds;  // cache
             Vector2 min = (Vector2)contentBounds.min + delta;
             Vector2 max = (Vector2)contentBounds.max + delta;
             Bounds viewBounds = this.viewBounds;
@@ -401,6 +427,19 @@ namespace Ricimon.ScrollSnap
         #endregion
 
         #region Content Management
+        private void CollectContent()
+        {
+            _contentRects.Clear();
+
+            if (!content)
+                return;
+
+            foreach (RectTransform rt in content)
+            {
+                _contentRects.Add(rt);
+            }
+        }
+
         private void CollectAndResizeContent(int axis)
         {
             _contentRects.Clear();
@@ -465,6 +504,14 @@ namespace Ricimon.ScrollSnap
             layoutGroup.childForceExpandWidth = layoutGroup.childForceExpandHeight = false;
         }
 
+        protected float GetRectScrollPosition(int index)
+        {
+            int axis = movementDirection == MovementDirection.Horizontal ?
+                0 :
+                1;
+            return _contentRects[index].anchoredPosition[axis] + contentPosition[axis] - contentBounds.extents[axis];
+        }
+
         protected virtual void OnDrawGizmosSelected()
         {
             if (_drawGizmos)
@@ -504,6 +551,33 @@ namespace Ricimon.ScrollSnap
         public override bool IsActive()
         {
             return base.IsActive() && content != null;
+        }
+
+        public virtual bool TryGetClosestElement(out int index, out RectTransform rectTransform)
+        {
+            if (!content || _contentRects.Count == 0)
+            {
+                index = 0;
+                rectTransform = null;
+                return false;
+            }
+
+            float closestDistance = Mathf.Abs(GetRectScrollPosition(0));
+            index = 0;
+            for (int i = 1; i < _contentRects.Count; i++)
+            {
+                float displacement = GetRectScrollPosition(i);
+                float distance = Mathf.Abs(displacement);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    index = i;
+                }
+                if (displacement >= 0)
+                    break;
+            }
+            rectTransform = _contentRects[index];
+            return true;
         }
         #endregion
 
