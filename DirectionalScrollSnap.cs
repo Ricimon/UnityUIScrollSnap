@@ -144,7 +144,7 @@ namespace Ricimon.ScrollSnap
                     return new Bounds();
 
                 Vector2 contentSize = content.rect.size;
-                Vector2 contentCenter = content.rect.center;
+                Vector2 contentCenter = content.anchoredPosition;
                 if (content.parent != viewRect)
                 {
                     contentSize = viewRect.InverseTransformVector(content.TransformVector(contentSize));
@@ -158,6 +158,7 @@ namespace Ricimon.ScrollSnap
                 return new Bounds(contentCenter, contentSize);
             }
         }
+
         private Bounds viewBounds => new Bounds(viewRect.rect.center, viewRect.rect.size);
 
         private Vector2 _prevContentPosition;
@@ -279,9 +280,16 @@ namespace Ricimon.ScrollSnap
             // Update Velocity
             Vector2 newVelocity = (contentPosition - _prevContentPosition) / deltaTime;
             // User dragging should smooth velocity, whereas script-controlled movement should be precise velocity.
-            velocity = _scroller.IsScrolling ?
-                newVelocity :
-                Vector2.Lerp(velocity, newVelocity, deltaTime * 10);
+            if (_scroller.State == Scroller.ScrollState.NotScrolling)
+            {
+                velocity = new Vector2(
+                    Mathf.Abs(newVelocity.x) > Mathf.Abs(velocity.x) ? Mathf.Lerp(velocity.x, newVelocity.x, deltaTime * 10) : newVelocity.x,
+                    Mathf.Abs(newVelocity.y) > Mathf.Abs(velocity.y) ? Mathf.Lerp(velocity.y, newVelocity.y, deltaTime * 10) : newVelocity.y);
+            }
+            else if (_scroller.State != Scroller.ScrollState.WillStartScrolling)
+            {
+                velocity = newVelocity;
+            }
 
             UpdatePrevData();
 
@@ -374,16 +382,18 @@ namespace Ricimon.ScrollSnap
 
             if (movementType == MovementType.Elastic)
             {
+                bool inBounds = true;
                 if (offset.x != 0)
                 {
                     targetPosition.x -= RubberDelta(offset.x, viewBounds.size.x);
-                    _scroller.ScrollBackInBounds();
+                    inBounds = false;
                 }
                 if (offset.y != 0)
                 {
                     targetPosition.y -= RubberDelta(offset.y, viewBounds.size.y);
-                    _scroller.ScrollBackInBounds();
+                    inBounds = false;
                 }
+                _scroller.ContentInBounds = inBounds;
             }
 
             return targetPosition;
@@ -485,13 +495,15 @@ namespace Ricimon.ScrollSnap
             // Resize the Content rect to fit the content (TODO: Add boolean to toggle this off?)
             Vector2 tempContentSizeDelta = content.sizeDelta;
             tempContentSizeDelta[axis] = totalContentLength;
-            m_Tracker.Add(this, content, axis == 0 ?
+            m_Tracker.Add(this, content, (axis == 0 ?
                 DrivenTransformProperties.SizeDeltaX :
-                DrivenTransformProperties.SizeDeltaY);
+                DrivenTransformProperties.SizeDeltaY) |
+                DrivenTransformProperties.Pivot);
 #if UNITY_EDITOR
             Undo.RecordObject(content, "Fit Content Size");
 #endif
             content.sizeDelta = tempContentSizeDelta;
+            content.pivot = new Vector2(0.5f, 0.5f);
         }
 
         private void AddLayoutGroupToContent<T>() where T : HorizontalOrVerticalLayoutGroup

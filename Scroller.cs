@@ -6,17 +6,9 @@ namespace Ricimon.ScrollSnap
 {
     public class Scroller
     {
-        private const float MINIMUM_VELOCITY = 1f;
-
         public event Action<Vector2> ScrollPositionUpdate;
 
-        public bool IsScrolling => 
-            _scrollState != ScrollState.NotScrolling && 
-            _scrollState != ScrollState.WillStartScrolling;
-
-        private DirectionalScrollSnap _scrollSnap;
-
-        private enum ScrollState
+        public enum ScrollState
         {
             NotScrolling,
             WillStartScrolling,
@@ -25,7 +17,13 @@ namespace Ricimon.ScrollSnap
             Snapping,
         }
 
-        private ScrollState _scrollState = ScrollState.NotScrolling;
+        public ScrollState State { get; private set; } = ScrollState.NotScrolling;
+
+        public bool ContentInBounds { get; set; }
+
+        private const float MINIMUM_VELOCITY = 1f;
+
+        private DirectionalScrollSnap _scrollSnap;
 
         public Scroller(DirectionalScrollSnap scrollSnap)
         {
@@ -34,33 +32,36 @@ namespace Ricimon.ScrollSnap
 
         public void StopScroll()
         {
-            _scrollState = ScrollState.NotScrolling;
+            State = ScrollState.NotScrolling;
         }
 
         public void StartScroll()
         {
-            _scrollState = ScrollState.WillStartScrolling;
-        }
-
-        public void ScrollBackInBounds()
-        {
-            if (_scrollState != ScrollState.NotScrolling)
+            if (ContentInBounds)
             {
-                _scrollState = ScrollState.ScrollingBackInBounds;
+                State = ScrollState.WillStartScrolling;
+            }
+            else
+            {
+                State = ScrollState.ScrollingBackInBounds;
             }
         }
 
         public void Tick()
         {
-            switch(_scrollState)
+            switch(State)
             {
                 case ScrollState.WillStartScrolling:
-                    _scrollState = ScrollState.ScrollingWithInertia;
+                    State = ScrollState.ScrollingWithInertia;
                     goto case ScrollState.ScrollingWithInertia;
                 case ScrollState.ScrollingWithInertia:
+                    if (!ContentInBounds)
+                    {
+                        goto case ScrollState.ScrollingBackInBounds;
+                    }
                     if (!_scrollSnap.inertia)
                     {
-                        _scrollState = ScrollState.Snapping;
+                        State = ScrollState.Snapping;
                     }
                     else
                     {
@@ -71,7 +72,7 @@ namespace Ricimon.ScrollSnap
                         if (Mathf.Abs(decayedVelocity.x) < MINIMUM_VELOCITY &&
                             Mathf.Abs(decayedVelocity.y) < MINIMUM_VELOCITY)
                         {
-                            _scrollState = ScrollState.NotScrolling;
+                            State = ScrollState.NotScrolling;
                             break;
                         }
 
@@ -82,8 +83,6 @@ namespace Ricimon.ScrollSnap
                     break;
                 case ScrollState.ScrollingBackInBounds:
                     ScrollPositionUpdate?.Invoke(_scrollSnap.contentPosition);
-                    if (_scrollSnap.velocity == Vector2.zero)
-                        _scrollState = ScrollState.NotScrolling;
                     break;
             }
         }
