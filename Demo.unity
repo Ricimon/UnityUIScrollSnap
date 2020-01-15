@@ -479,7 +479,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 50, y: 100}
+  m_SizeDelta: {x: 200, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &763492322
 MonoBehaviour:
@@ -646,9 +646,9 @@ MonoBehaviour:
   m_Loop: 0
   m_EndSpacing: 100
   m_SimulateFlings: 1
-  m_Friction: 0.8
+  m_Friction: 0.469
   m_SnapType: 0
-  m_InterpolatorType: 4
+  m_InterpolatorType: 8
   m_Tension: 2
   m_MinDuration: 0.25
   m_MaxDuration: 2
@@ -656,15 +656,15 @@ MonoBehaviour:
   m_ButtonAnimationDuration: 1
   m_ButtonItemsToMoveBy: 1
   m_ButtonAlwaysGoToEnd: 1
-  m_ButtonInterpolator: 4
+  m_ButtonInterpolator: 8
   m_ButtonTension: 2
-  m_ScrollBarFriction: 0.8
-  m_ScrollBarInterpolator: 4
+  m_ScrollBarFriction: 0.469
+  m_ScrollBarInterpolator: 8
   m_ScrollBarTension: 2
   m_ScrollSensitivity: 1
   m_ScrollDelay: 0.02
-  m_ScrollFriction: 0.8
-  m_ScrollInterpolator: 4
+  m_ScrollFriction: 0.469
+  m_ScrollInterpolator: 8
   m_ScrollTension: 2
   m_AddInactiveChildrenToCalculatingFilter: 0
   m_FilterModeForCalculatingSize: 0
@@ -832,7 +832,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1917885146}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 782977944a6934042b60260c679a207f, type: 3}
+  m_Script: {fileID: 11500000, guid: 33319c962eb7fc844bc746536f770247, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   content: {fileID: 2057263178}
@@ -950,8 +950,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.00020972121, y: 0}
-  m_SizeDelta: {x: 50, y: 100}
+  m_AnchoredPosition: {x: 50, y: 0}
+  m_SizeDelta: {x: 200, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &2057263177
 GameObject:
@@ -988,7 +988,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 50, y: 0}
   m_SizeDelta: {x: 0, y: 100}
   m_Pivot: {x: 0, y: 0}
 --- !u!114 &2057263179

@@ -105,6 +105,26 @@ namespace Ricimon.ScrollSnap
 
         public Vector2 velocity { get; private set; }
 
+        public IInterpolator interpolator
+        {
+            get
+            {
+                if (_cachedInterpolator == null || _cachedInterpolatorType != interpolatorType)
+                {
+                    switch(interpolatorType)
+                    {
+                        case InterpolatorType.ViscousFluid:
+                            _cachedInterpolatorType = InterpolatorType.ViscousFluid;
+                            _cachedInterpolator = new ViscousFluidInterpolator();
+                            break;
+                        default:
+                            throw new NotImplementedException($"Interpolator type {interpolatorType} is not yet supported.");
+                    }
+                }
+                return _cachedInterpolator;
+            }
+        }
+
         // Private ------------------------------------------------------------------
         private RectTransform _rectTransform;
         private RectTransform rectTransform
@@ -162,6 +182,9 @@ namespace Ricimon.ScrollSnap
         private Bounds viewBounds => new Bounds(viewRect.rect.center, viewRect.rect.size);
 
         private Vector2 _prevContentPosition;
+
+        private InterpolatorType _cachedInterpolatorType;
+        private IInterpolator _cachedInterpolator;
 
         // Content Rects
         private List<RectTransform> _contentRects = new List<RectTransform>();
@@ -352,7 +375,10 @@ namespace Ricimon.ScrollSnap
             if (!IsActive())
                 return;
 
-            _scroller.StartScroll();
+            if (TryGetClosestElement(out int i, out var rt))
+            {
+                _scroller.StartScroll(contentPosition, contentPosition - GetRectPosition(i), maxSnapDuration, interpolator);
+            }
         }
 
         private Vector2 FitDeltaToScrollDirection(Vector2 delta)
@@ -518,10 +544,23 @@ namespace Ricimon.ScrollSnap
 
         protected float GetRectScrollPosition(int index)
         {
-            int axis = movementDirection == MovementDirection.Horizontal ?
-                0 :
-                1;
-            return _contentRects[index].anchoredPosition[axis] + contentPosition[axis] - contentBounds.extents[axis];
+            int axis, m;
+            if (movementDirection == MovementDirection.Horizontal)
+            {
+                axis = 0;
+                m = 1;
+            }
+            else
+            {
+                axis = 1;
+                m = -1;
+            }
+            return _contentRects[index].anchoredPosition[axis] + contentPosition[axis] - m * contentBounds.extents[axis];
+        }
+
+        protected Vector2 GetRectPosition(int index)
+        {
+            return _contentRects[index].anchoredPosition + contentPosition - Vector2.Scale(contentBounds.extents, new Vector2(1, -1));
         }
 
         protected virtual void OnDrawGizmosSelected()

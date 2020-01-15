@@ -25,6 +25,15 @@ namespace Ricimon.ScrollSnap
 
         private DirectionalScrollSnap _scrollSnap;
 
+        private IInterpolator _interpolator;
+
+        private float _scrollTotalDuration;
+        private float _scrollTotalDurationReciprocal;
+        private float _scrollDurationLeft;
+        private Vector2 _scrollStartPosition;
+        private Vector2 _scrollTargetPosition;
+        private Vector2 _movementDelta;
+
         public Scroller(DirectionalScrollSnap scrollSnap)
         {
             _scrollSnap = scrollSnap;
@@ -35,25 +44,53 @@ namespace Ricimon.ScrollSnap
             State = ScrollState.NotScrolling;
         }
 
-        public void StartScroll()
+        public void StartScroll(Vector2 startPosition, Vector2 targetPosition, float duration, IInterpolator interpolator)
         {
-            if (ContentInBounds)
+            if (interpolator == null)
             {
-                State = ScrollState.WillStartScrolling;
+                interpolator = new ViscousFluidInterpolator();
             }
-            else
-            {
-                State = ScrollState.ScrollingBackInBounds;
-            }
+
+            State = ScrollState.Snapping;
+            _interpolator = interpolator;
+            _scrollTotalDuration = _scrollDurationLeft = duration;
+            _scrollTotalDurationReciprocal = 1 / duration;
+            _scrollStartPosition = startPosition;
+            _scrollTargetPosition = targetPosition;
+            _movementDelta = targetPosition - startPosition;
+
+            //if (ContentInBounds)
+            //{
+            //    State = ScrollState.WillStartScrolling;
+            //}
+            //else
+            //{
+            //    State = ScrollState.ScrollingBackInBounds;
+            //}
         }
 
         public void Tick()
         {
             switch(State)
             {
+                case ScrollState.Snapping:
+                    _scrollDurationLeft = Mathf.Max(
+                        _scrollDurationLeft - (_scrollSnap.affectedByTimeScaling ? Time.deltaTime : Time.unscaledDeltaTime),
+                        0f);
+
+                    float x = _interpolator.GetInterpolation((_scrollTotalDuration - _scrollDurationLeft) * _scrollTotalDurationReciprocal);
+                    ScrollPositionUpdate?.Invoke(_scrollStartPosition + (x * _movementDelta));
+
+                    if (_scrollDurationLeft == 0)
+                    {
+                        State = ScrollState.NotScrolling;
+                    }
+                    break;
+
                 case ScrollState.WillStartScrolling:
                     State = ScrollState.ScrollingWithInertia;
                     goto case ScrollState.ScrollingWithInertia;
+
                 case ScrollState.ScrollingWithInertia:
                     if (!ContentInBounds)
                     {
@@ -62,6 +99,7 @@ namespace Ricimon.ScrollSnap
                     if (!_scrollSnap.inertia)
                     {
                         State = ScrollState.Snapping;
+                        goto case ScrollState.Snapping;
                     }
                     else
                     {
@@ -81,6 +119,7 @@ namespace Ricimon.ScrollSnap
                         ScrollPositionUpdate?.Invoke(endPosition);
                     }
                     break;
+
                 case ScrollState.ScrollingBackInBounds:
                     ScrollPositionUpdate?.Invoke(_scrollSnap.contentPosition);
                     break;
